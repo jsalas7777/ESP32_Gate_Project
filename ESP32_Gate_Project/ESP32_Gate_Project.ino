@@ -1,4 +1,6 @@
 const int LED_PIN = 25;
+const int EXTRA_PINS[] = {26, 27, 28};
+const int EXTRA_PINS_COUNT = sizeof(EXTRA_PINS) / sizeof(EXTRA_PINS[0]);
 const unsigned long LOG_INTERVAL_MS = 2000;
 const int BOOT_BLINKS = 3;
 const int BLINK_MS = 200;
@@ -23,6 +25,10 @@ const char *resetReasonName(esp_reset_reason_t r) {
 void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
+  for (int i = 0; i < EXTRA_PINS_COUNT; i++) {
+    pinMode(EXTRA_PINS[i], OUTPUT);
+    digitalWrite(EXTRA_PINS[i], HIGH);
+  }
 
   Serial.printf("[BOOT] ESP32 started, reset reason: %s\n", resetReasonName(esp_reset_reason()));
 
