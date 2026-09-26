@@ -5,6 +5,8 @@ const int GATE_3 = 14;
 const int GATES[] = {GATE_1, GATE_2, GATE_3};
 const char *GATE_NAMES[] = {"gate_1", "gate_2", "gate_3"};
 const int GATE_COUNT = sizeof(GATES) / sizeof(GATES[0]);
+// true = all gates stay ON (wiring test), false = run the gate sequence
+const bool TEST_ALL_ON = false;
 const unsigned long GATE_ON_MS = 1000;
 const unsigned long GATE_OFF_MS = 1000;
 const unsigned long LOG_INTERVAL_MS = 2000;
@@ -63,11 +65,28 @@ void setup() {
   digitalWrite(LED_PIN, HIGH);
   Serial.println("[BOOT] blink done, GPIO25 ON");
 
+  if (TEST_ALL_ON) {
+    for (int i = 0; i < GATE_COUNT; i++) {
+      digitalWrite(GATES[i], HIGH);
+    }
+    Serial.println("[TEST] all gates ON (GPIO26, GPIO27, GPIO14)");
+    return;
+  }
+
   gateOnNow(activeGate);
   lastStep = millis();
 }
 
 void loop() {
+  if (TEST_ALL_ON) {
+    if (millis() - lastLog >= LOG_INTERVAL_MS) {
+      lastLog = millis();
+      Serial.printf("[TEST] gate_1=%d gate_2=%d gate_3=%d\n",
+                    digitalRead(GATE_1), digitalRead(GATE_2), digitalRead(GATE_3));
+    }
+    return;
+  }
+
   // gate_1 ON -> OFF -> gate_2 ON -> OFF -> gate_3 ON -> OFF -> repeat
   if (gateOn && millis() - lastStep >= GATE_ON_MS) {
     lastStep = millis();
