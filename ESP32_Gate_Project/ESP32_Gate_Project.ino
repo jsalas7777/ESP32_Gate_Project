@@ -45,15 +45,22 @@ const char *resetReasonName(esp_reset_reason_t r) {
   }
 }
 
-void setup() {
-  Serial.begin(115200);
+// Set the output level LOW before switching each pin to OUTPUT so it never glitches HIGH
+void allPinsOff() {
+  digitalWrite(LED_PIN, LOW);
   pinMode(LED_PIN, OUTPUT);
   for (int i = 0; i < GATE_COUNT; i++) {
-    pinMode(GATES[i], OUTPUT);
     digitalWrite(GATES[i], LOW);
+    pinMode(GATES[i], OUTPUT);
   }
+}
+
+void setup() {
+  allPinsOff();
+  Serial.begin(115200);
 
   Serial.printf("[BOOT] ESP32 started, reset reason: %s\n", resetReasonName(esp_reset_reason()));
+  Serial.println("[BOOT] all pins OFF (GPIO25, GPIO26, GPIO27, GPIO14)");
 
   for (int i = 0; i < BOOT_BLINKS; i++) {
     digitalWrite(LED_PIN, HIGH);
