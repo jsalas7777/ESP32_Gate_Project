@@ -9,7 +9,7 @@ const int GATE_COUNT = sizeof(GATES) / sizeof(GATES[0]);
 const unsigned long GATE1_PULSE_MS = 1000;  // each pulse: 1s ON, 1s OFF
 const int GATE1_PULSES = 3;
 const unsigned long GATE2_ON_MS = 20000;
-const unsigned long GATE3_ON_MS = 20000;
+const unsigned long GATE2_OFF_MS = 20000;
 const unsigned long DEBOUNCE_MS = 50;
 const unsigned long LOG_INTERVAL_MS = 2000;
 const int BOOT_BLINKS = 3;
@@ -21,7 +21,7 @@ bool lastSensorReading = false;
 unsigned long lastSensorChange = 0;
 
 // Gate sequence, runs while the sensor is OFF
-enum SequenceStep { IDLE, GATE1_PULSING, GATE2_ON, GATE3_ON };
+enum SequenceStep { IDLE, GATE2_ON, GATE2_OFF, GATE1_PULSING };
 SequenceStep step = IDLE;
 unsigned long stepStart = 0;
 
@@ -57,8 +57,9 @@ bool readSensor() {
 }
 
 void startSequence() {
-  Serial.println("[SEQ] start: gate_1 pulsing");
-  step = GATE1_PULSING;
+  Serial.println("[SEQ] start: gate_2 ON");
+  digitalWrite(GATE_2, HIGH);
+  step = GATE2_ON;
   stepStart = millis();
 }
 
@@ -78,7 +79,7 @@ void nextStep(SequenceStep next) {
   stepStart = millis();
 }
 
-// gate_1 3 pulses -> gate_2 ON 20s -> gate_3 ON 20s
+// gate_2 ON 20s -> gate_2 OFF 20s -> gate_1 3 pulses
 void updateSequence() {
   unsigned long elapsed = millis() - stepStart;
 
@@ -86,35 +87,32 @@ void updateSequence() {
     case IDLE:
       break;
 
+    case GATE2_ON:
+      if (elapsed >= GATE2_ON_MS) {
+        digitalWrite(GATE_2, LOW);
+        Serial.println("[SEQ] gate_2 OFF, waiting");
+        nextStep(GATE2_OFF);
+      }
+      break;
+
+    case GATE2_OFF:
+      if (elapsed >= GATE2_OFF_MS) {
+        Serial.println("[SEQ] gate_1 pulsing");
+        nextStep(GATE1_PULSING);
+      }
+      break;
+
     case GATE1_PULSING: {
       int phase = elapsed / GATE1_PULSE_MS;
       if (phase >= GATE1_PULSES * 2) {
         digitalWrite(GATE_1, LOW);
-        digitalWrite(GATE_2, HIGH);
-        Serial.println("[SEQ] gate_1 done, gate_2 ON");
-        nextStep(GATE2_ON);
+        Serial.println("[SEQ] gate_1 done");
+        nextStep(IDLE);
       } else {
         digitalWrite(GATE_1, phase % 2 == 0 ? HIGH : LOW);
       }
       break;
     }
-
-    case GATE2_ON:
-      if (elapsed >= GATE2_ON_MS) {
-        digitalWrite(GATE_2, LOW);
-        digitalWrite(GATE_3, HIGH);
-        Serial.println("[SEQ] gate_2 OFF, gate_3 ON");
-        nextStep(GATE3_ON);
-      }
-      break;
-
-    case GATE3_ON:
-      if (elapsed >= GATE3_ON_MS) {
-        digitalWrite(GATE_3, LOW);
-        Serial.println("[SEQ] gate_3 OFF, done");
-        nextStep(IDLE);
-      }
-      break;
   }
 }
 
