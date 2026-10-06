@@ -20,10 +20,13 @@ bool sensorOn = false;
 bool lastSensorReading = false;
 unsigned long lastSensorChange = 0;
 
-// Gate sequence, runs while the sensor is OFF
+// Gate sequence, started when the sensor turns OFF; runs to completion
 enum SequenceStep { IDLE, GATE2_ON, GATE2_OFF, GATE1_PULSING };
 SequenceStep step = IDLE;
 unsigned long stepStart = 0;
+
+// After a sequence finishes, the sensor must go ON (while idle) before an OFF can start it again
+bool armed = true;
 
 unsigned long lastLog = 0;
 
@@ -63,17 +66,6 @@ void startSequence() {
   stepStart = millis();
 }
 
-// Sensor ON: abort the sequence and turn every gate off
-void stopSequence() {
-  for (int i = 0; i < GATE_COUNT; i++) {
-    digitalWrite(GATES[i], LOW);
-  }
-  if (step != IDLE) {
-    Serial.println("[SEQ] stopped by sensor, all gates OFF");
-  }
-  step = IDLE;
-}
-
 void nextStep(SequenceStep next) {
   step = next;
   stepStart = millis();
@@ -106,7 +98,7 @@ void updateSequence() {
       int phase = elapsed / GATE1_PULSE_MS;
       if (phase >= GATE1_PULSES * 2) {
         digitalWrite(GATE_1, LOW);
-        Serial.println("[SEQ] gate_1 done");
+        Serial.println("[SEQ] gate_1 done, waiting for sensor ON then OFF");
         nextStep(IDLE);
       } else {
         digitalWrite(GATE_1, phase % 2 == 0 ? HIGH : LOW);
@@ -149,21 +141,25 @@ void loop() {
   if (reading != sensorOn && millis() - lastSensorChange >= DEBOUNCE_MS) {
     sensorOn = reading;
     Serial.printf("[SENSOR] GPIO19 %s\n", sensorOn ? "ON" : "OFF");
-    if (sensorOn) {
-      stopSequence();
-    }
   }
 
-  // Run the sequence whenever the sensor is OFF (repeats while it stays OFF)
-  if (!sensorOn && step == IDLE) {
-    startSequence();
+  // Sensor changes are ignored while the sequence runs; it cannot be stopped.
+  // Once idle, sensor ON re-arms and the next sensor OFF starts the sequence.
+  if (step == IDLE) {
+    if (sensorOn && !armed) {
+      armed = true;
+      Serial.println("[SEQ] re-armed, will start on sensor OFF");
+    } else if (!sensorOn && armed) {
+      armed = false;
+      startSequence();
+    }
   }
 
   updateSequence();
 
   if (millis() - lastLog >= LOG_INTERVAL_MS) {
     lastLog = millis();
-    Serial.printf("[OK] uptime=%lus, sensor=%s, step=%d\n",
-                  millis() / 1000, sensorOn ? "ON" : "OFF", step);
+    Serial.printf("[OK] uptime=%lus, sensor=%s, step=%d, armed=%s\n",
+                  millis() / 1000, sensorOn ? "ON" : "OFF", step, armed ? "yes" : "no");
   }
 }
